@@ -1,0 +1,33 @@
+# Import tfplan/v2 for analyzing the Terraform plan
+import "tfplan/v2" as tfplan
+
+# Parameter to define allowed module paths (e.g., specific module names)
+param allowed_modules default [
+	"module.network",
+	"module.compute",
+	"module.storage",
+]
+
+# Function to check if a resource is created directly or through a module
+resource_provided_by_module = func(resource) {
+	# A resource provided by a module has a module path in its address
+	resource.address matches "^module\\."
+}
+
+# Function to validate if the resource module is in the allowed list
+resource_in_allowed_modules = func(resource) {
+	# Extract the module portion of the resource address
+	module_path = resource.module_address
+	module_path in allowed_modules
+}
+
+# Filter resources to find violations
+violating_resources = filter tfplan.module_resources as _, resource {
+	# Check if the resource is created outside of the allowed modules
+	not resource_provided_by_module(resource) or not resource_in_allowed_modules(resource)
+}
+
+# Main rule: Ensure no violating resources exist
+main = rule {
+	length(violating_resources) is 0
+}
