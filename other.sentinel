@@ -1,0 +1,45 @@
+import "tfplan" as tfplan
+import "strings"
+
+// Define parameter to accept the list of exempt projects
+allowed_projects = rule {
+  // Example of allowed projects, pass this list as a parameter
+  // Replace with dynamic input from Sentinel
+  ["dev-rg", "prod-rg"]
+}
+
+// Helper function to check if a resource address belongs to a module
+is_resource_from_module = func(resource_address) {
+  return strings.has_prefix(resource_address, "module.")
+}
+
+// Filter all resource changes in the plan
+allResourceChanges = filter tfplan.resource_changes as address, change {
+  // Include only resources being created or updated
+  change.change.actions contains "create" or
+  change.change.actions is ["update"]
+}
+
+// Identify resources not created from a module
+resourcesNotFromModule = filter allResourceChanges as address, change {
+  not is_resource_from_module(address)
+}
+
+// Function to check if the resource is from an exempt project
+is_resource_in_exempt_project = func(resource_group_name) {
+  allowed_projects contains resource_group_name
+}
+
+// Rule to deny the plan if any resources are not created from a module and not in an exempt project
+deny_resources_not_from_module = rule {
+  allResourceChanges as address, change {
+    resource_group_name := change.change.after.resource_group_name
+    not is_resource_in_exempt_project(resource_group_name) and
+    not is_resource_from_module(address)
+  }
+}
+
+// Main rule
+main = rule {
+  deny_resources_not_from_module
+}
