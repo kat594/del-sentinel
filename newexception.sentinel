@@ -1,0 +1,30 @@
+import "tfplan" as plan
+import "strings"
+
+param allowed_modules = list(string)
+param exception_projects = list(string)
+
+violatingResourcesCount = 0
+allResources = plan.resources
+
+is_exception_project = func(project string) bool {
+    return strings.contains(exception_projects, project)
+}
+
+prohibitedResources = filter allResources as resource {
+
+    not is_exception_project(resource.project) and not strings.contains(resource.module, allowed_modules)
+}
+
+if length(prohibitedResources) > 0 {
+    print("Resources must be created from allowed modules:", allowed_modules)
+    violatingResourcesCount += length(prohibitedResources)
+    for prohibitedResources as r {
+        print("Resource", r.address, "is not allowed from module", r.module, "in project", r.project)
+    }
+}
+
+violations = violatingResourcesCount
+main = rule {
+    violations is 0
+}
