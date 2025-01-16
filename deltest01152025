@@ -1,0 +1,30 @@
+import "tfplan" as plan
+import "strings"
+
+param allowed_modules = list(string)
+
+violatingResourcesCount = 0
+allResources = plan.resources
+
+# Filter resources that are not using allowed modules
+prohibitedResources = filter allResources as resource {
+    # Ensure resource.module is a string and not undefined
+    resource.module is string and not strings.contains(resource.module, allowed_modules)
+}
+
+# If prohibited resources exist, log violations
+if length(prohibitedResources) > 0 {
+    print("Resources must be created from allowed modules:", allowed_modules)
+    violatingResourcesCount += length(prohibitedResources)
+    for prohibitedResources as r {
+        print("Resource", r.address, "is not allowed from module", r.module)
+    }
+}
+
+# Set violations count
+violations = violatingResourcesCount
+
+# Policy passes only if there are no violations
+main = rule {
+    violations is 0
+}
