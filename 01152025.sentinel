@@ -1,0 +1,35 @@
+import "tfplan" as plan
+import "strings"
+
+param allowed_module_sources default [
+	# "terraform-aws-modules/s3-bucket/aws",
+	"module.tfe_poc",
+	# "app.terraform.io/Cloud-Operations/s3-bucket/aws",
+	# "app.terraform.io/Cloud-Operations/caf/azurerm",
+	# "app.terraform.io/Cloud-Operations/cloud-storage/google",
+]
+
+validated = true
+all_resources = plan.resources
+
+for all_resources as resource_address, resource {
+	module_source = resource.module
+	allowed = false
+
+	for allowed_module_sources as allowed_source {
+		if strings.has_prefix(module_source, allowed_source) {
+			allowed = true
+			break
+		}
+	}
+
+	if not allowed {
+		print("Resource", resource_address, "is created using module", module_source,
+			"which is not in the allowed list of modules.")
+		validated = false
+	}
+}
+
+main = rule {
+	validated
+}
