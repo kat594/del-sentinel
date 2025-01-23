@@ -2,6 +2,7 @@ https://stackoverflow.com/questions/75705822/difference-between-map-and-map-obje
 
 https://developer.hashicorp.com/terraform/language/expressions/types
 
+https://developer.hashicorp.com/terraform/tutorials/configuration-language/for-each
 
   default = {
     project1 = {
