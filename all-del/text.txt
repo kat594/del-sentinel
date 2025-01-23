@@ -1,0 +1,13 @@
+https://stackoverflow.com/questions/75705822/difference-between-map-and-map-object-in-terraform
+
+https://developer.hashicorp.com/terraform/language/expressions/types
+
+
+  default = {
+    project1 = {
+      policies = {
+        policy1 = {
+          name             = "project1-policy1"
+          policy_file      = "sentinel-policies/project1/policy1.sentinel"
+          enforcement_mode = "hard-mandatory"
+        },
