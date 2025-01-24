@@ -1,0 +1,112 @@
+modules/sentinel/main.tf
+---
+variable "project" {
+  description = "The project-specific configuration"
+  type        = any
+}
+
+variable "tfe_org" {
+  description = "Terraform Enterprise organization name"
+  type        = string
+}
+
+variable "sentinel_policies" {
+  description = "List of Sentinel policies to onboard"
+  type        = list(object({
+    name              = string             # Name of the policy
+    policy_file       = string             # Path to the Sentinel policy file
+    enforcement_level = string             # Enforcement level (e.g., hard-mandatory, advisory)
+  }))
+}
+
+provider "tfe" {
+  alias = "tfe"
+}
+
+resource "tfe_policy" "policy" {
+  for_each = { for policy in var.sentinel_policies : policy.name => policy }
+
+  name         = each.value.name
+  organization = var.tfe_org
+  policy       = file(each.value.policy_file) # Load Sentinel policy content
+}
+
+resource "tfe_policy_set" "policy_set" {
+  depends_on     = [tfe_policy.policy]
+  name           = var.project.policy_set_name
+  organization   = var.tfe_org
+  policies       = [for p in tfe_policy.policy : p.id]
+  workspace_ids  = [var.project.workspace_id] # Link to project workspace
+  enforcement_level = var.project.enforcement_level
+}
+---
+
+
+main.tf
+
+module "sentinel" {
+  count = length(local.projects)
+
+  source           = "./modules/sentinel"
+  project          = local.projects[count.index]
+  tfe_org          = var.tfe_org
+  sentinel_policies = [
+    {
+      name              = "Enforce-Tags"
+      policy_file       = "./policies/enforce_tags.sentinel"
+      enforcement_level = "hard-mandatory"
+    },
+    {
+      name              = "Disallow-Unapproved-Providers"
+      policy_file       = "./policies/disallow_unapproved_providers.sentinel"
+      enforcement_level = "advisory"
+    }
+  ]
+}
+
+
+----
+
+
+projects/project1.json
+
+
+{
+  "name": "Project 1",
+  "workspace_id": "ws-12345",
+  "policy_set_name": "Project1-Policy-Set",
+  "enforcement_level": "hard-mandatory"
+}
+
+----
+
+
+.
+├── main.tf
+├── projects/
+│   ├── project1.json
+│   ├── project2.json
+├── modules/
+│   ├── access/
+│   ├── tfe_auth/
+│   ├── sentinel/
+│       └── main.tf
+├── policies/
+│   ├── enforce_tags.sentinel
+│   ├── disallow_unapproved_providers.sentinel
+
+
+
+----
+
+
+output "sentinel_policy_sets" {
+  value = module.sentinel[*].policy_set
+}
+
+
+
+
+-----
+
+
