@@ -1,0 +1,33 @@
+{
+    "sentinel_policies": {
+      "enforce_tags": {
+        "name": "Enforce Tags",
+        "description": "Policy to enforce tagging standards",
+        "policy_file": "policies/enforce_tags.sentinel",
+        "enforce_mode": "hard-mandatory"
+      },
+      "disallow_unapproved_providers": {
+        "name": "Disallow Unapproved Providers",
+        "description": "Policy to disallow use of unapproved providers",
+        "policy_file": "policies/disallow_unapproved_providers.sentinel",
+        "enforce_mode": "advisory"
+      }
+    },
+    "policy_set_name": "My Policy Set",
+    "policy_set_description": "Policy set for enforcing security and compliance standards",
+    "policy_tool_version": "0.24.1",
+    "agent_enabled": true,
+    "vcs_repo_identifier": "my-org-name/my-policy-set-repository",
+    "vcs_repo_branch": "main",
+    "vcs_repo_ingress_submodules": false,
+    "vcs_repo_oauth_token_id": "my-oauth-token-id",
+    "workspaces": [
+      { "id": "ws-12345" },
+      { "id": "ws-67890" }
+    ],
+    "policy_set_parameters": {
+      "my_key_name": "my_value_name",
+      "another_key": "another_value"
+    }
+  }
+  
