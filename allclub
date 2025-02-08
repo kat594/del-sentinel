@@ -1,0 +1,362 @@
+----------configs/terraform.tfvars.json----------
+{
+  "org_name": "tmo-org",
+  "tags": ["tmo", "automation"],
+  "policies": [
+    {
+      "name": "module_enforcement",
+      "description": "Ensure modules are enforced",
+      "enforcement_level": "hard-mandatory",
+      "file": "policies/module_enforcement.sentinel"
+    },
+    {
+      "name": "tag_enforcement",
+      "description": "Ensure tags are enforced",
+      "enforcement_level": "soft-mandatory",
+      "file": "policies/tag_enforcement.sentinel"
+    }
+  ],
+  "policy_sets": [
+    {
+      "name": "policy_set_1",
+      "description": "Policy set for module enforcement",
+      "kind": "sentinel",
+      "policy_ids": ["module_enforcement"],
+      "workspaces": ["workspace-1"]
+    },
+    {
+      "name": "policy_set_2",
+      "description": "Policy set for tag enforcement",
+      "kind": "sentinel",
+      "policy_ids": ["tag_enforcement"],
+      "workspaces": ["workspace-2"]
+    }
+  ]
+}
+
+
+
+-----main.tf-------
+
+terraform {
+  required_providers {
+    tfe = {
+      source  = "hashicorp/tfe"
+      version = "~> 0.42.0"
+    }
+  }
+}
+
+provider "tfe" {}
+
+# Load variables from JSON
+variable "config" {
+  type = any
+  default = jsondecode(file("${path.module}/configs/terraform.tfvars.json"))
+}
+
+# Use variables from JSON
+module "projects" {
+  source   = "./modules/projects"
+  org_name = var.config.org_name
+  projects = var.config.projects
+  tags     = var.config.tags
+}
+
+module "teams" {
+  source   = "./modules/teams"
+  org_name = var.config.org_name
+  projects = var.config.projects
+  tags     = var.config.tags
+}
+
+module "policy_sets" {
+  source   = "./modules/policy_sets"
+  org_name = var.config.org_name
+  projects = var.config.projects
+  tags     = var.config.tags
+}
+
+
+-----modules/policies/main.tf----
+
+
+resource "tfe_sentinel_policy" "policies" {
+  for_each     = { for policy in var.policies : policy.name => policy }
+  organization = var.org_name
+  name         = each.value.name
+  description  = each.value.description
+  enforcement_level = each.value.enforcement_level
+  policy       = file("${path.module}/${each.value.file}")
+}
+
+
+---------modules/policy_sets/main.tf--------
+resource "tfe_policy_set" "policy_sets" {
+  for_each           = { for policy in var.policy_sets : policy.name => policy }
+  name               = each.value.name
+  description        = each.value.description
+  organization       = var.org_name
+  kind               = each.value.kind
+  agent_enabled      = false
+  policy_tool_version = "0.24.1"
+  policy_ids         = [for policy in each.value.policy_ids : tfe_sentinel_policy.policies[policy].id]
+  workspace_ids      = each.value.workspaces
+}
+--------modules/policies/variables.tf-----
+variable "org_name" {
+  type = string
+}
+
+variable "policies" {
+  type = list(object({
+    name               = string
+    description        = string
+    enforcement_level  = string
+    file              = string
+  }))
+}
+
+------modules/teams/main.tf-----
+resource "tfe_team" "teams" {
+  for_each     = { for project in var.projects : project.name => project.teams... }
+  organization = var.org_name
+  name         = each.value.name
+  tags         = var.tags
+}
+
+resource "tfe_team_access" "team_access" {
+  for_each    = { for project in var.projects : project.name => project.teams... }
+  team_id     = tfe_team.teams[each.value.name].id
+  project_id  = module.projects.project_ids[each.key]
+  access      = each.value.access_level
+}
+
+
+--------modules/projects/variables.tf----------
+variable "org_name" {
+  type = string
+}
+
+variable "projects" {
+  type = list(object({
+    name = string
+    teams = list(object({
+      name         = string
+      access_level = string
+    }))
+  }))
+}
+
+variable "tags" {
+  type = list(string)
+}
+---------
+-------modules/projects/main.tf-----------
+resource "tfe_project" "projects" {
+  for_each     = { for project in var.projects : project.name => project }
+  organization = var.org_name
+  name         = each.key
+  tags         = var.tags
+}
+
+
+--------------main.tf----------------
+
+terraform {
+  required_providers {
+    tfe = {
+      source  = "hashicorp/tfe"
+      version = "~> 0.42.0"
+    }
+  }
+}
+
+provider "tfe" {
+  # Assumes authentication via environment variable `TFE_TOKEN`
+}
+
+# Create organization
+resource "tfe_organization" "org" {
+  name  = var.org_name
+  email = var.org_email
+}
+
+# Call Project Module
+module "projects" {
+  source      = "./modules/projects"
+  org_name    = var.org_name
+  tags        = var.tags
+}
+
+# Call Team Module
+module "teams" {
+  source      = "./modules/teams"
+  org_name    = var.org_name
+  projects    = module.projects.project_ids
+  tags        = var.tags
+}
+
+# Call Policy Set Module
+module "policy_sets" {
+  source      = "./modules/policy_sets"
+  org_name    = var.org_name
+  projects    = module.projects.project_ids
+  tags        = var.tags
+}
+---------------
+
+
+
+
+
+
+-------------------------------------------------------------main.tf---------------------------------------
+
+
+terraform {
+  required_providers {
+    tfe = {
+      source  = "hashicorp/tfe"
+      version = "~> 0.42.0"
+    }
+  }
+}
+
+provider "tfe" {
+  token = var.tfe_token
+}
+
+# 🔹 Create Organization
+resource "tfe_organization" "org" {
+  name  = var.org_name
+  email = var.org_email
+}
+
+# 🔹 Create Projects
+module "projects" {
+  source        = "./modules/projects"
+  org_name      = tfe_organization.org.name
+  project_names = var.project_names
+}
+
+# 🔹 Create Teams
+module "teams" {
+  source     = "./modules/teams"
+  org_name   = tfe_organization.org.name
+  team_names = var.team_names
+}
+
+# 🔹 Onboard Sentinel Policies
+module "policies" {
+  source   = "./modules/policies"
+  org_name = tfe_organization.org.name
+  policies = var.policies
+}
+
+# 🔹 Onboard Policy Sets
+module "policy_sets" {
+  source      = "./modules/policy_sets"
+  org_name    = tfe_organization.org.name
+  policy_sets = var.policy_sets
+}
+
+
+
+
+---------------variables.tf---------------------
+variable "tfe_token" {
+  description = "Terraform Enterprise Token"
+  type        = string
+  sensitive   = true
+}
+
+variable "org_name" {
+  description = "TFE Organization Name"
+  type        = string
+}
+
+variable "org_email" {
+  description = "Email for organization admin"
+  type        = string
+}
+
+variable "project_names" {
+  description = "List of projects to create"
+  type        = list(string)
+}
+
+variable "team_names" {
+  description = "List of teams to create"
+  type        = list(string)
+}
+
+variable "policies" {
+  description = "List of Sentinel policies"
+  type = list(object({
+    name               = string
+    description        = string
+    enforcement_level  = string
+    file              = string
+  }))
+}
+
+variable "policy_sets" {
+  description = "List of policy sets and their associated policies"
+  type = list(object({
+    name          = string
+    description   = string
+    kind          = string
+    policy_ids    = list(string)
+    workspaces    = list(string)
+  }))
+}
+
+
+
+
+-----------configs/terraform.tfvars.json---------------------
+
+
+{
+  "tfe_token": "your-tfe-token-here",
+  "org_name": "tmo-org",
+  "org_email": "admin@tmo.com",
+  "project_names": ["tmo-project-1", "tmo-project-2"],
+  "team_names": ["tmo-team-1", "tmo-team-2"],
+  "policies": [
+    {
+      "name": "module_enforcement",
+      "description": "Ensure modules are enforced",
+      "enforcement_level": "hard-mandatory",
+      "file": "modules/policies/module_enforcement.sentinel"
+    },
+    {
+      "name": "tag_enforcement",
+      "description": "Ensure tags are enforced",
+      "enforcement_level": "soft-mandatory",
+      "file": "modules/policies/tag_enforcement.sentinel"
+    }
+  ],
+  "policy_sets": [
+    {
+      "name": "policy_set_1",
+      "description": "Policy set for module enforcement",
+      "kind": "sentinel",
+      "policy_ids": ["module_enforcement"],
+      "workspaces": ["workspace-1"]
+    },
+    {
+      "name": "policy_set_2",
+      "description": "Policy set for tag enforcement",
+      "kind": "sentinel",
+      "policy_ids": ["tag_enforcement"],
+      "workspaces": ["workspace-2"]
+    }
+  ]
+}
+
+
+
+
+
