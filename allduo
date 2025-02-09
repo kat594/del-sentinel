@@ -1,0 +1,155 @@
+---------- Root Module (main.tf in /terraform-project/)-------------------
+
+module "tfe_setup" {
+  source = "./modules/tfe-module"
+
+  organization_name  = var.organization_name
+  organization_email = var.organization_email
+  project_name       = var.project_name
+  policies          = var.policies
+}
+
+-------------Root Variables (variables.tf in /terraform-project/)----------------
+variable "organization_name" {}
+variable "organization_email" {}
+variable "project_name" {}
+
+variable "policies" {
+  type = list(object({
+    policy_name           = string
+    policy_description    = string
+    policy_file           = string
+    policy_enforce_mode   = string
+    policy_set_name       = string
+    policy_set_description = string
+    policy_tool_version   = string
+  }))
+}
+
+-------3. Terraform JSON Variables (terraform.tfvars.json)-------------------
+{
+  "organization_name": "tmobile-poc-org",
+  "organization_email": "casey.keyser2@t-mobile.com",
+  "project_name": "poc-project",
+  "policies": [
+    {
+      "policy_name": "allowed-modules",
+      "policy_description": "Restricts the modules that can be used",
+      "policy_file": "./modules/tfe-module/policies/allowed-modules.sentinel",
+      "policy_enforce_mode": "hard-mandatory",
+      "policy_set_name": "poc-policy-set",
+      "policy_set_description": "Testing Policy-set",
+      "policy_tool_version": "0.24.1"
+    },
+    {
+      "policy_name": "restricted-network",
+      "policy_description": "Enforces network restrictions",
+      "policy_file": "./modules/tfe-module/policies/restricted-network.sentinel",
+      "policy_enforce_mode": "soft-mandatory",
+      "policy_set_name": "poc-policy-set",
+      "policy_set_description": "Testing Policy-set",
+      "policy_tool_version": "0.24.1"
+    },
+    {
+      "policy_name": "compliance-check",
+      "policy_description": "Ensures compliance with security standards",
+      "policy_file": "./modules/tfe-module/policies/compliance-check.sentinel",
+      "policy_enforce_mode": "advisory",
+      "policy_set_name": "poc-policy-set",
+      "policy_set_description": "Testing Policy-set",
+      "policy_tool_version": "0.24.1"
+    }
+  ]
+}
+
+------------Terraform Module (tfe-module/main.tf)---------------
+
+variable "organization_name" {}
+variable "organization_email" {}
+variable "project_name" {}
+
+variable "policies" {
+  type = list(object({
+    policy_name           = string
+    policy_description    = string
+    policy_file           = string
+    policy_enforce_mode   = string
+    policy_set_name       = string
+    policy_set_description = string
+    policy_tool_version   = string
+  }))
+}
+
+resource "tfe_organization" "org" {
+  name  = var.organization_name
+  email = var.organization_email
+}
+
+resource "tfe_project" "project" {
+  name         = var.project_name
+  organization = tfe_organization.org.name
+}
+
+resource "tfe_policy_set" "policy_set" {
+  for_each            = { for p in var.policies : p.policy_name => p }
+  name                = each.value.policy_set_name
+  description         = each.value.policy_set_description
+  organization        = tfe_organization.org.name
+  kind                = "policy"
+  global              = false
+  policy_ids          = [tfe_policy[each.value.policy_name].id]
+}
+
+resource "tfe_policy" "policy" {
+  for_each       = { for p in var.policies : p.policy_name => p }
+  name           = each.value.policy_name
+  description    = each.value.policy_description
+  organization   = tfe_organization.org.name
+  policy_set_id  = tfe_policy_set.policy_set[each.value.policy_name].id
+  enforce_mode   = each.value.policy_enforce_mode
+  policy         = file(each.value.policy_file)
+  tool_version   = each.value.policy_tool_version
+}
+
+
+--------------Module Variables (tfe-module/variables.tf)-------------
+variable "organization_name" {}
+variable "organization_email" {}
+variable "project_name" {}
+
+variable "policies" {
+  type = list(object({
+    policy_name           = string
+    policy_description    = string
+    policy_file           = string
+    policy_enforce_mode   = string
+    policy_set_name       = string
+    policy_set_description = string
+    policy_tool_version   = string
+  }))
+}
+
+-----------------Outputs (tfe-module/outputs.tf)-------------
+
+output "organization_id" {
+  value = tfe_organization.org.id
+}
+
+output "project_id" {
+  value = tfe_project.project.id
+}
+
+output "policy_set_ids" {
+  value = { for p in var.policies : p.policy_name => tfe_policy_set.policy_set[p.policy_name].id }
+}
+
+output "policy_ids" {
+  value = { for p in var.policies : p.policy_name => tfe_policy.policy[p.policy_name].id }
+}
+
+
+
+--------------
+
+
+
