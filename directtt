@@ -1,0 +1,61 @@
+terraform {
+  required_providers {
+    tfe = {
+      source  = "hashicorp/tfe"
+      version = "~> 0.42.0"
+    }
+  }
+}
+
+provider "tfe" {
+  token = var.tfe_token
+}
+
+# ✅ Create Organization
+resource "tfe_organization" "org" {
+  name  = var.org_name
+  email = var.org_email
+}
+
+# ✅ Create Projects
+resource "tfe_project" "projects" {
+  for_each    = { for project in var.projects : project.name => project }
+  organization = tfe_organization.org.name
+  name        = each.value.name
+}
+
+# ✅ Create Teams
+resource "tfe_team" "teams" {
+  for_each    = { for team in var.teams : team.name => team }
+  organization = tfe_organization.org.name
+  name        = each.value.name
+}
+
+# ✅ Assign Teams to Projects
+resource "tfe_team_access" "team_access" {
+  for_each    = { for team in var.teams : team.name => team if team.project_name != null }
+  team_id     = tfe_team.teams[each.value.name].id
+  project_id  = tfe_project.projects[each.value.project_name].id
+  access      = each.value.access
+}
+
+# ✅ Create Sentinel Policies
+resource "tfe_sentinel_policy" "policies" {
+  for_each    = { for policy in var.policies : policy.name => policy }
+  organization = tfe_organization.org.name
+  name        = each.value.name
+  description = each.value.description
+  policy      = file("${path.module}/policies/${each.value.file}")
+  enforcement_level = each.value.enforcement_level
+}
+
+# ✅ Create Policy Sets and Attach Policies
+resource "tfe_policy_set" "policy_sets" {
+  for_each    = { for set in var.policy_sets : set.name => set }
+  name        = each.value.name
+  description = each.value.description
+  organization = tfe_organization.org.name
+  kind        = each.value.kind
+  policy_ids  = [for policy in each.value.policy_names : tfe_sentinel_policy.policies[policy].id]
+  workspace_ids = [for project in each.value.projects : tfe_project.projects[project].id]
+}
