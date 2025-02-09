@@ -149,7 +149,57 @@ output "policy_ids" {
 
 
 
---------------
+--------------tfe-module/main.tf-------------
+variable "organization_name" {}
+variable "organization_email" {}
+variable "project_name" {}
 
+variable "policies" {
+  type = list(object({
+    policy_name           = string
+    policy_description    = string
+    policy_file           = string
+    policy_enforce_mode   = string
+    policy_set_name       = string
+    policy_set_description = string
+    policy_tool_version   = string
+  }))
+}
+
+resource "tfe_organization" "org" {
+  name  = var.organization_name
+  email = var.organization_email
+}
+
+resource "tfe_project" "project" {
+  name         = var.project_name
+  organization = tfe_organization.org.name
+}
+
+resource "tfe_policy_set" "policy_set" {
+  for_each            = { for p in var.policies : p.policy_set_name => p }
+  name                = each.value.policy_set_name
+  description         = each.value.policy_set_description
+  organization        = tfe_organization.org.name
+  kind                = "policy"
+  global              = false
+}
+
+resource "tfe_policy" "policy" {
+  for_each       = { for p in var.policies : p.policy_name => p }
+  name           = each.value.policy_name
+  description    = each.value.policy_description
+  organization   = tfe_organization.org.name
+  enforce_mode   = each.value.policy_enforce_mode
+  policy         = file(each.value.policy_file)
+  tool_version   = each.value.policy_tool_version
+}
+
+resource "tfe_policy_set_policy" "policy_set_policy" {
+  for_each       = { for p in var.policies : p.policy_name => p }
+  policy_set_id  = tfe_policy_set.policy_set[each.value.policy_set_name].id
+  policy_id      = tfe_policy.policy[each.value.policy_name].id
+}
+--------------------------------------------
 
 
