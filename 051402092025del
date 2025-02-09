@@ -1,0 +1,28 @@
+provider "tfe" {
+  token = "your_tfe_token"
+}
+
+# Declare variables for the number of policies and organization
+variable "organization" {
+  description = "TFE Organization Name"
+  type        = string
+  default     = "my-org-name"
+}
+
+# Use fileset to dynamically load all .sentinel files in the 'policies' folder
+locals {
+  policy_files = fileset("./policies", "*.sentinel")
+}
+
+# Onboard multiple Sentinel policies
+resource "tfe_policy" "sentinel_policy" {
+  for_each      = toset(local.policy_files)  # Loop through the policy files
+  name          = each.key                  # Name based on the file name
+  description   = "This policy always passes"
+  organization  = var.organization
+  kind          = "sentinel"
+  enforce_mode  = "hard-mandatory"
+  policy        = file("./policies/${each.key}")  # Load each policy file dynamically
+}
+--
+
