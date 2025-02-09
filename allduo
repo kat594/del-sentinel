@@ -201,5 +201,7 @@ resource "tfe_policy_set_policy" "policy_set_policy" {
   policy_id      = tfe_policy.policy[each.value.policy_name].id
 }
 --------------------------------------------
+for_each            = { for p in var.policies : "${p.policy_set_name}-${p.policy_name}" => p }
+--------------------------------------------
 
 
