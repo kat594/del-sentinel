@@ -19,3 +19,10 @@ resource "tfe_policy" "test" {
   policy       = file(var.policy_files[count.index])  # Read the policy file content
   enforce_mode = "hard-mandatory"
 }
+
+variable "policy_files" {
+  description = "List of Sentinel policy file paths"
+  type        = list(string)
+}
+
+
