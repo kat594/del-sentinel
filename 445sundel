@@ -1,0 +1,44 @@
+provider "tfe" {
+  token = "your_tfe_token"
+}
+
+# Define the variable for the number of policies to onboard
+variable "policy_count" {
+  description = "Number of policies to onboard"
+  type        = number
+  default     = 3
+}
+
+# Define the variable for policy names
+variable "policy_names" {
+  description = "List of policy names"
+  type        = list(string)
+  default     = ["policy-1", "policy-2", "policy-3"]
+}
+
+# Define the variable for organization
+variable "organization" {
+  description = "TFE Organization Name"
+  type        = string
+  default     = "my-org-name"
+}
+
+# Onboard multiple Sentinel policies
+resource "tfe_policy" "sentinel_policy" {
+  count         = var.policy_count
+  name          = var.policy_names[count.index]
+  description   = "This policy always passes"
+  organization  = var.organization
+  kind          = "sentinel"
+  policy        = "main = rule { true }"
+  enforce_mode  = "hard-mandatory"
+}
+
+
+policy_count = 5
+policy_names = ["policy-1", "policy-2", "policy-3", "policy-4", "policy-5"]
+organization = "my-org-name"
+
+
+
+
