@@ -88,5 +88,57 @@ resource "tfe_policy_set_policy" "policy_association" {
 
 
 
+----------Check------------
 
+provider "tfe" {
+  token = var.tfe_token  # Use a secure variable for authentication
+}
+
+# Declare variables
+variable "organization" {
+  description = "TFE Organization Name"
+  type        = string
+  default     = "my-org-name"
+}
+
+variable "tfe_token" {
+  description = "Terraform Enterprise Token"
+  type        = string
+  sensitive   = true
+}
+
+variable "workspace_ids" {
+  description = "List of workspace IDs to associate with the policy set"
+  type        = list(string)
+  default     = []
+}
+
+# Load all Sentinel policy files dynamically
+locals {
+  policy_files = fileset("./policies", "*.sentinel")
+}
+
+# Create multiple Sentinel policies
+resource "tfe_policy" "sentinel_policy" {
+  for_each     = toset(local.policy_files)  
+  name         = trimsuffix(each.key, ".sentinel")  # Remove file extension from policy name
+  description  = "Sentinel policy for Terraform governance"
+  organization = var.organization
+  kind         = "sentinel"
+  enforce_mode = "hard-mandatory"
+  policy       = file("./policies/${each.key}")  
+}
+
+# Create a Policy Set and associate all policies
+resource "tfe_policy_set" "sentinel_policy_set" {
+  name         = "my-policy-set"
+  description  = "Policy Set for governance"
+  organization = var.organization
+  kind         = "sentinel"
+  workspace_ids = var.workspace_ids
+  policy_ids    = [for p in tfe_policy.sentinel_policy : p.id]  # Associate all policies
+}
+
+
+---Checking_____
 
