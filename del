@@ -1,0 +1,21 @@
+variable "policy_files" {
+  description = "List of Sentinel policy file paths"
+  type        = list(string)
+  default     = [
+    "sentinel_policies/policy1.hcl",
+    "sentinel_policies/policy2.hcl",
+    "sentinel_policies/policy3.hcl",
+    "sentinel_policies/policy4.hcl"
+  ]
+}
+
+
+resource "tfe_policy" "test" {
+  count        = length(var.policy_files)
+  name         = "my-policy-name-${count.index}"
+  description  = "This is a dynamically loaded policy"
+  organization = "my-org-name"
+  kind         = "sentinel"
+  policy       = file(var.policy_files[count.index])  # Read the policy file content
+  enforce_mode = "hard-mandatory"
+}
